@@ -1,6 +1,6 @@
 public class Card {
-    private int suit; //clubs, diamonds, hearts, spades in order 1-4
-    private int rank; //1-13: ace, 2, ..., king
+    private final int suit; //clubs, diamonds, hearts, spades in order 1-4
+    private final int rank; //1-13: ace, 2, ..., king
 
     public Card(int s, int r) {
         suit = s;

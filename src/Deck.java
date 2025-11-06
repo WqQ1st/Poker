@@ -9,7 +9,6 @@ public class Deck {
         deck = new Card[52];
         initDeck(deck);
         shuffle(seed);
-
     }
 
     public Card draw() {
@@ -40,7 +39,7 @@ public class Deck {
     public String toString() {
         String s = "";
         for (int i = nextIndex; i < deck.length; i++) {
-            s += deck[i].toString() + " ";
+            s += deck[i] + " ";
         }
         return s;
     }
