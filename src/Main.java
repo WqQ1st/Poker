@@ -6,8 +6,7 @@ public class Main {
     }
 
     private static void play() {
-        Board b = new Board(System.nanoTime()); //hardcode long seed for testing
-        Table t = new Table(b);
-        t.play();
+        Table t = new Table();
+        t.playLoop();
     }
 }

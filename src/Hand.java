@@ -11,6 +11,10 @@ public class Hand {
         cards.add(c);
     }
 
+    public ArrayList<Card> getHand() {
+        return cards;
+    }
+
     public String toString() {
         return cards.toString();
     }

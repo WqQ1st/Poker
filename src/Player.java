@@ -1,13 +1,17 @@
 public class Player {
     private final Hand hand;
     private String name;
-    private Board board;
-    private Action lastAction = Action.CHECK;
+    private int stack = 200;
+    private int currentBet = 0;
+    private boolean isIn = true;
 
-    public Player(String n, Board b) {
+    public Player(String n) {
         hand = new Hand();
         name = n;
-        board = b;
+    }
+
+    public Hand getHand() {
+        return hand;
     }
 
     public void deal(Card c) {
@@ -15,15 +19,39 @@ public class Player {
     }
 
     public String toString() {
-        return name + " " + hand + ", action=" + lastAction + ")";
-    }
-
-    public Action getAction() {
-        return lastAction;
+        return name + ", stack: " + Integer.toString(stack) + ", " + hand;
     }
 
     public void act(Action a) {
         //TODO: do action
 
+    }
+
+    public void setBet(int bet) {
+        currentBet = bet;
+    }
+
+    public int getBet() {
+        return currentBet;
+    }
+
+    public int getStack() {
+        return stack;
+    }
+
+    public void setStack(int s) {
+        stack = s;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public boolean isIn() {
+        return isIn;
+    }
+
+    public void out() {
+        isIn = false;
     }
 }

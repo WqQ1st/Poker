@@ -5,25 +5,18 @@ public class Board {
     private final Card[] board;
     private final Deck deck;
     private int nextIndex;
-    private final ArrayList<Player> players;
 
-    public Board(long seed) {
-        deck = new Deck(seed);
+    public Board(Deck d) {
+        deck = d;
         board = new Card[5];
-        players = new ArrayList<>();
     }
 
-    public void addPlayer(Player p) {
-        players.add(p);
-    }
-
-    public void deal() {
-        for (int i = 0; i < 2; i++) {
-            for (Player p : players) {
-                p.deal(deck.draw());
-
-            }
+    public ArrayList<Card> getBoard() {
+        ArrayList<Card> cards = new ArrayList<>();
+        for (Card c : board) {
+            cards.add(c);
         }
+        return cards;
     }
 
     public void flop() {
@@ -55,8 +48,6 @@ public class Board {
                 s += c + " ";
             }
         }
-
-        s += "\nplayers: " + players;
         return s;
     }
 }
