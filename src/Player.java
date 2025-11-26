@@ -1,5 +1,5 @@
 public class Player {
-    private final Hand hand;
+    private Hand hand;
     private String name;
     private int stack = 200;
     private int currentBet = 0;
@@ -53,5 +53,13 @@ public class Player {
 
     public void out() {
         isIn = false;
+    }
+
+    public void in() {
+        isIn = true;
+    }
+
+    public void clearHand() {
+        hand = new Hand();
     }
 }
