@@ -1,2 +1,2 @@
 # Poker
-java poker game, no LLM
+Heads up Poker game, uses JavaFX
