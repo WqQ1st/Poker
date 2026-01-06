@@ -197,7 +197,7 @@ public class PokerFX extends Application {
         try {
             return Integer.parseInt(field.getText().trim());
         } catch (Exception ex) {
-            // you can show an error popup later, for now just ignore bad input
+            // can show an error popup later, for now just ignore bad input
             return 0;
         }
     }

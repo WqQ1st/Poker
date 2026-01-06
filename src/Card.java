@@ -7,6 +7,13 @@ public class Card {
         rank = r;
     }
 
+    public int getSuit() {
+        return suit;
+    }
+    public int getRank() {
+        return rank;
+    }
+
     @Override
     public String toString() {
         String[] ranks = {"2","3","4","5","6","7","8","9","T","J","Q","K","A"};

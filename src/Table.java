@@ -25,6 +25,8 @@ public class Table {
     private Scanner in = new Scanner(System.in);
     private int currentPlayerIndex = 0;
 
+    private final HandEvaluator handEval = new HandEvaluator();
+
     public Table() {
         long seed = System.nanoTime();
         deck = new Deck(seed);
@@ -518,8 +520,8 @@ public class Table {
             }
             case RIVER -> {
                 street = Street.SHOWDOWN;
-                // TODO: showdown logic, hand evaluation, awarding pot
-                System.out.println("Showdown (hand evaluation not implemented yet)");
+                resolveShowdown();
+                startNewHand();
             }
             default -> {
             }
@@ -544,7 +546,10 @@ public class Table {
 
         Player winner = players.get(winnerIndex);
         winner.setStack(winner.getStack() + potThisHand);
-        System.out.printf("%s wins %d chips.%n", winner.getName(), potThisHand);
+        ArrayList<Card> seven = new ArrayList<>(winner.getHand().getHand());
+        seven.addAll(board.getBoard());
+        HandEvaluator.HandValue hv = HandEvaluator.eval5(HandEvaluator.bestHand(seven));
+        System.out.printf("%s wins %d chips with %s.%n", winner.getName(), potThisHand, hv.toString());
 
         potThisHand = 0;
         resetRoundBets();
@@ -581,6 +586,35 @@ public class Table {
         potThisHand = 0;
         resetRoundBets();
         street = Street.SHOWDOWN;
+    }
+
+    private void resolveShowdown() { //decides winner and awards
+        ArrayList<Integer> activeIdx = new ArrayList<>();
+        for (int i = 0; i < players.size(); i++) {
+            if (players.get(i).isIn()) {
+                activeIdx.add(i);
+            }
+        }
+
+        if (activeIdx.isEmpty()) {
+            return;
+        } else if (activeIdx.size() > 2) {
+            throw new IllegalArgumentException("More than 2 players detected");
+        } else if (activeIdx.size() == 1) {
+            awardPotToPlayer(activeIdx.get(0));
+        }
+        ArrayList<Card> h1 = players.get(activeIdx.get(0)).getHand().getHand();
+        ArrayList<Card> h2 = players.get(activeIdx.get(1)).getHand().getHand();
+        int diff = handEval.compareHands(board.getBoard(), h1, h2);
+        if (diff == 0) {
+            splitPotBetweenActivePlayers();
+        } else if (diff > 0) {
+            awardPotToPlayer(activeIdx.get(0));
+        } else {
+            awardPotToPlayer(activeIdx.get(1));
+        }
+
+
     }
 
 }
