@@ -14,6 +14,9 @@ public class Board {
     public ArrayList<Card> getBoard() {
         ArrayList<Card> cards = new ArrayList<>();
         for (Card c : board) {
+            if (c == null) {
+                break;
+            }
             cards.add(c);
         }
         return cards;

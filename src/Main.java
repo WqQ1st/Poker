@@ -6,7 +6,8 @@ public class Main {
     }
 
     private static void play() {
-        Table t = new Table();
+        PokerFX ui = new PokerFX();
+        Table t = new Table(ui);
         t.playLoop();
     }
 }

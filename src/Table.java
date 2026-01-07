@@ -1,6 +1,5 @@
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Scanner;
 
 public class Table {
     public enum Street {
@@ -16,25 +15,26 @@ public class Table {
     private Deck deck;
     private boolean roundOver = false;
     private int actionsThisStreet = 0;
+    private PokerFX ui;
 
     private Street street = Street.PREFLOP;
 
 
     private int currentBet = 0;     // highest committed amount this round
     private int potThisHand = 0;    // total pot for this hand
-    private Scanner in = new Scanner(System.in);
     private int currentPlayerIndex = 0;
 
     private final HandEvaluator handEval = new HandEvaluator();
 
-    public Table() {
+    public Table(PokerFX ui) {
+        this.ui = ui;
         long seed = System.nanoTime();
         deck = new Deck(seed);
         board = new Board(deck); //hardcode seed for consistency
         button = 0;
         players = new ArrayList<>();
-        players.add(new Player("joe"));
-        players.add(new Player("jack"));
+        players.add(new Player("p1"));
+        players.add(new Player("p2"));
     }
 
     public void playLoop() {
@@ -68,6 +68,7 @@ public class Table {
 
 
     public void play() {
+
         startNewHand();
 
         players.get((button + 1) % players.size()).setBet(BB);
@@ -81,7 +82,7 @@ public class Table {
 
         printPlayers();
 
-        runBettingRound((button) % players.size(), button % players.size());
+        //runBettingRound((button) % players.size(), button % players.size());
         resetRoundBets();
         if (roundOver) {
             button += 1;
@@ -172,14 +173,18 @@ public class Table {
                         p.out();
                         active--;
                         System.out.printf("%s folds.%n", p.getName());
+                        /*
                         if (active == 1) {
                             roundOver = true;
                             return; // round over, hand effectively ends
                         }
+
+                         */
                         if (pending > 0) pending--;
                     }
                     case CHECK -> {
                         System.out.printf("%s checks.%n", p.getName());
+                        ui.setMsg(p.getName() + " checks.");
                         if (pending > 0) pending--;
                     }
                     case CALL -> {
@@ -188,6 +193,7 @@ public class Table {
                         p.setBet(p.getBet() + pay);
                         potThisHand += pay;
                         System.out.printf("%s calls %d. Pot=%d%n", p.getName(), pay, potThisHand);
+                        ui.setMsg(p.getName() + " calls " + pay + ". Pot=" + potThisHand);
                         if (pending > 0) pending--;
                     }
                     case BET -> {
@@ -198,6 +204,7 @@ public class Table {
                         potThisHand += bet;
                         lastRaiser = i;
                         System.out.printf("%s bets %d. Pot=%d%n", p.getName(), bet, potThisHand);
+                        ui.setMsg(p.getName() + " bets " + bet + ". Pot=" + potThisHand);
                         pending = active - 1;
                     }
 
@@ -211,6 +218,7 @@ public class Table {
                         lastRaiser = i;
                         System.out.printf("%s raises by %d to %d. Pot=%d%n",
                                 p.getName(), ca.amount, currentBet, potThisHand);
+                        ui.setMsg(p.getName() + " raises by " + ca.amount + " to " + currentBet + ". Pot=" + potThisHand);
                         pending = active - 1;
                     }
                 }
@@ -228,10 +236,12 @@ public class Table {
         }
     }
 
+/*
     public ChosenAction action(Player p, int minToCall, int minRaise) {
         while (true) {
             System.out.printf("%n%s to act. Stack=%d, ToCall=%d, CurrentBet=%d, Pot=%d%n",
                     p.getName(), p.getStack(), minToCall, currentBet, potThisHand);
+
             System.out.print("Enter action [check/call/bet x/raise x/fold]: ");
 
             String line = in.nextLine().trim().toLowerCase();
@@ -281,6 +291,8 @@ public class Table {
             System.out.println("Unrecognized input.");
         }
     }
+
+ */
 
     public void deal(int n) {
         for (int i = 0; i < n; i++) {
@@ -380,19 +392,25 @@ public class Table {
             case FOLD -> {
                 p.out();
                 System.out.printf("%s folds.%n", p.getName());
+                ui.setMsg(p.getName() + " folds.");
+                awardFold((getCurrentPlayerIndex() + 1) % 2); //assuming heads up
+                startNewHand();
                 performed = true;
             }
             case CHECK -> {
                 if (toCall > 0) {
                     System.out.println("Cannot CHECK — there is a bet to call.");
+                    ui.setMsg("Cannot CHECK — there is a bet to call.");
                     return;
                 }
                 System.out.printf("%s checks.%n", p.getName());
+                ui.setMsg(p.getName() + " checks.");
                 performed = true;
             }
             case CALL -> {
                 if (toCall == 0) {
                     System.out.println("Nothing to call; try CHECK or BET.");
+                    ui.setMsg("Nothing to call; try CHECK or BET.");
                     return;
                 }
                 int pay = Math.min(toCall, p.getStack());
@@ -400,15 +418,18 @@ public class Table {
                 p.setBet(p.getBet() + pay);
                 potThisHand += pay;
                 System.out.printf("%s calls %d. Pot=%d%n", p.getName(), pay, potThisHand);
+                ui.setMsg(p.getName() + " calls " + pay + ". Pot=" + potThisHand);
                 performed = true;
             }
             case BET -> {
                 if (currentBet != 0) {
                     System.out.println("Cannot BET — already a bet, use RAISE.");
+                    ui.setMsg("Cannot BET — already a bet, use RAISE.");
                     return;
                 }
-                if (amount <= 0 || amount > p.getStack()) {
+                if (amount <= 0 || amount > p.getStack() || amount > players.get((currentPlayerIndex + 1) % 2).getStack()) {
                     System.out.println("Invalid bet.");
+                    ui.setMsg("Invalid bet.");
                     return;
                 }
                 p.setStack(p.getStack() - amount);
@@ -416,33 +437,38 @@ public class Table {
                 currentBet = p.getBet();
                 potThisHand += amount;
                 System.out.printf("%s bets %d. Pot=%d%n", p.getName(), amount, potThisHand);
+                ui.setMsg(p.getName() + " bets " + amount + ". Pot=" + potThisHand);
                 performed = true;
             }
             case RAISE -> {
                 if (currentBet == 0) {
                     System.out.println("Nothing to raise; use BET instead.");
+                    ui.setMsg("Nothing to raise; use BET instead.");
                     return;
                 }
                 if (amount < minRaise) {
                     System.out.printf("Min raise is %d%n", minRaise);
+                    ui.setMsg("Min raise is " + minRaise);
                     return;
                 }
                 int target = currentBet + amount;
                 int need = target - p.getBet();
                 if (need <= 0) {
                     System.out.println("You already matched that.");
+                    ui.setMsg("You already matched that.");
                     return;
                 }
                 if (need > p.getStack()) {
                     System.out.println("Insufficient stack.");
+                    ui.setMsg("Insufficient stack");
                     return;
                 }
                 p.setStack(p.getStack() - need);
                 p.setBet(target);
                 potThisHand += need;
                 currentBet = target;
-                System.out.printf("%s raises by %d to %d. Pot=%d%n",
-                        p.getName(), amount, currentBet, potThisHand);
+                System.out.printf("%s raises by %d to %d. Pot=%d%n", p.getName(), amount, currentBet, potThisHand);
+                ui.setMsg(p.getName() + " raises by " + amount + " to " + currentBet + ". Pot=" + potThisHand);
                 performed = true;
             }
         }
@@ -527,7 +553,6 @@ public class Table {
             }
         }
     }
-
     private void maybeAdvanceAfterAction() {
         if (isHandOver()) {
             street = Street.SHOWDOWN;
@@ -542,7 +567,9 @@ public class Table {
     }
 
     public void awardPotToPlayer(int winnerIndex) {
-        if (winnerIndex < 0 || winnerIndex >= players.size()) return;
+        if (winnerIndex < 0 || winnerIndex >= players.size()) {
+            throw new IllegalArgumentException("Invalid player index");
+        }
 
         Player winner = players.get(winnerIndex);
         winner.setStack(winner.getStack() + potThisHand);
@@ -550,10 +577,22 @@ public class Table {
         seven.addAll(board.getBoard());
         HandEvaluator.HandValue hv = HandEvaluator.eval5(HandEvaluator.bestHand(seven));
         System.out.printf("%s wins %d chips with %s.%n", winner.getName(), potThisHand, hv.toString());
-
+        ui.setMsg(winner.getName() + " wins " + potThisHand + " chips with " + hv.toString());
         potThisHand = 0;
         resetRoundBets();
         street = Street.SHOWDOWN;
+    }
+
+    public void awardFold(int winnerIndex) {
+        if (winnerIndex < 0 || winnerIndex >= players.size()) {
+            throw new IllegalArgumentException("Invalid player index");
+        }
+        Player winner = players.get(winnerIndex);
+        winner.setStack(winner.getStack() + potThisHand);
+        resetRoundBets();
+        street = Street.SHOWDOWN;
+        System.out.printf("Opponent folds; %s wins %d chips.%n", winner.getName(), potThisHand);
+        potThisHand = 0;
     }
 
     public void splitPotBetweenActivePlayers() {

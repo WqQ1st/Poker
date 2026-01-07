@@ -1,6 +1,6 @@
 public class Card {
     private final int suit; //clubs, diamonds, hearts, spades in order 1-4
-    private final int rank; //1-13: ace, 2, ..., king
+    private final int rank; //0-13: 2, ..., king, ace
 
     public Card(int s, int r) {
         suit = s;
@@ -10,6 +10,21 @@ public class Card {
     public int getSuit() {
         return suit;
     }
+
+    public char getSuitLetter() {
+        if (suit == 1) {
+            return 'C';
+        } else if (suit == 2) {
+            return 'D';
+        } else if (suit == 3) {
+            return 'H';
+        } else if (suit == 4) {
+            return 'S';
+        } else {
+            throw new IllegalArgumentException("Suit is not valid: 1-4");
+        }
+    }
+
     public int getRank() {
         return rank;
     }
