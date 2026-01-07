@@ -29,29 +29,33 @@ public class HandEvaluator {
         public String toString() {
             String s = "";
             switch (this.cat) {
-                case Category.HIGH_CARD:
-                    s += (tiebreak[0] + 1) + "High";
+                case HIGH_CARD:
+                    s += Card.rankToString(tiebreak[0]) + "High";
                     break;
                 case Category.ONE_PAIR:
-                    s += "A Pair of " + (tiebreak[0] + 1) + "s";
+                    s += "A Pair of " + Card.rankToString(tiebreak[0]) + "s";
                     break;
                 case Category.TWO_PAIR:
-                    s += "A" + (tiebreak[0] + 1) + " and " + (tiebreak[1] + 1) + " Two Pair";
+                    s += "A " + Card.rankToString(tiebreak[0]) + " and " + Card.rankToString(tiebreak[1]) + " Two Pair";
                     break;
                 case Category.THREE_OF_A_KIND:
-                    s += "Three of a Kind of " + (tiebreak[0] + 1) + "s";
+                    s += "Three of a Kind of " + Card.rankToString(tiebreak[0]) + "s";
                     break;
                 case Category.STRAIGHT:
-                    s += "A" + (tiebreak[0] + 1) + " high Straight";
+                    s += "A " + Card.rankToString(tiebreak[0]) + " high Straight";
                     break;
                 case Category.FLUSH:
-                    s += "A" + (tiebreak[0] + 1) + " high Flush";
+                    s += "A " + Card.rankToString(tiebreak[0]) + " high Flush";
+                    break;
                 case Category.FULL_HOUSE:
-                    s += (tiebreak[0] + 1) + "s Full of " + (tiebreak[1] + 1) + "s";
+                    s += Card.rankToString(tiebreak[0]) + "s Full of " + Card.rankToString(tiebreak[1])+ "s";
+                    break;
                 case Category.FOUR_OF_A_KIND:
-                    s += "Quad " + (tiebreak[0] + 1) + "s";
+                    s += "Quad " + Card.rankToString(tiebreak[0]) + "s";
+                    break;
                 case Category.STRAIGHT_FLUSH:
-                    s += "A" + (tiebreak[0] + 1) + "high Straight Flush";
+                    s += "A " + Card.rankToString(tiebreak[0]) + " high Straight Flush";
+                    break;
                 default:
                     throw new IllegalArgumentException("No value assigned");
             }
@@ -152,7 +156,7 @@ public class HandEvaluator {
 
         if (groups.get(0)[1] == 3 && groups.get(1)[1] == 2) {
             int three = groups.get(0)[0];
-            int two = groups.get(1)[1];
+            int two = groups.get(1)[0];
             return new HandValue(Category.FULL_HOUSE, three, two); //three, two
         }
 
