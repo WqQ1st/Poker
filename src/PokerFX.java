@@ -27,20 +27,8 @@ public class PokerFX extends Application {
     private ImageView card1Label;
     private ImageView card2Label;
 
-
-    /*
-    private ImageView flop1Label;
-    private ImageView flop2Label;
-    private ImageView flop3Label;
-    private ImageView turn1Label;
-    private ImageView river1Label;
-     */
-
     private Label msg = new Label("Started!");
 
-
-
-    //private Label boardLabel;
     private Button potLabel; //pot size
     private Button statusLabel; //current bet, amt to call displayed
     private Button turnLabel; //next to act
@@ -63,11 +51,7 @@ public class PokerFX extends Application {
 
         //player cards
         card1Label = new ImageView();
-        card1Label.setFitHeight(100);
-        card1Label.setFitWidth(70);
         card2Label = new ImageView();
-        card2Label.setFitHeight(100);
-        card2Label.setFitWidth(70);
 
         //board cards
         ImageView flop1Label = new ImageView();
@@ -76,18 +60,15 @@ public class PokerFX extends Application {
         ImageView turn1Label = new ImageView();
         ImageView river1Label = new ImageView();
 
-        flop1Label.setFitHeight(100);
-        flop1Label.setFitWidth(70);
-        flop2Label.setFitHeight(100);
-        flop2Label.setFitWidth(70);
-        flop2Label.setFitHeight(100);
-        flop2Label.setFitWidth(70);
-        flop3Label.setFitHeight(100);
-        flop3Label.setFitWidth(70);
-        turn1Label.setFitHeight(100);
-        turn1Label.setFitWidth(70);
-        river1Label.setFitHeight(100);
-        river1Label.setFitWidth(70);
+        card1Label.setPreserveRatio(true);
+        card2Label.setPreserveRatio(true);
+
+        flop1Label.setPreserveRatio(true);
+        flop2Label.setPreserveRatio(true);
+        flop3Label.setPreserveRatio(true);
+        turn1Label.setPreserveRatio(true);
+        river1Label.setPreserveRatio(true);
+
 
         boardDisplay.add(flop1Label);
         boardDisplay.add(flop2Label);
@@ -137,7 +118,7 @@ public class PokerFX extends Application {
         HBox cardBox = new HBox(30, card1Label, card2Label);
         cardBox.setAlignment(Pos.CENTER);
 
-        HBox boardBox = new HBox(flop1Label, flop2Label, flop3Label, turn1Label, river1Label); //boardLabel or card png's
+        HBox boardBox = new HBox(5, flop1Label, flop2Label, flop3Label, turn1Label, river1Label); //boardLabel or card png's
         boardBox.setAlignment(Pos.CENTER);
 
 
@@ -206,6 +187,26 @@ public class PokerFX extends Application {
 
         root.setStyle("-fx-background-color: darkgreen;");
         Scene scene = new Scene(root, 600, 450);
+
+        //makes the layout stretch
+        root.setFillWidth(true);
+        boardBox.setMaxWidth(Double.MAX_VALUE);
+        cardBox.setMaxWidth(Double.MAX_VALUE);
+        actionButtons.setMaxWidth(Double.MAX_VALUE);
+        stacks.setMaxWidth(Double.MAX_VALUE);
+        turns.setMaxWidth(Double.MAX_VALUE);
+
+        //scales cards with window size
+        var boardCardH = scene.widthProperty().divide(7.5);   // 600/7.5 = 80px at start
+        var handCardH  = scene.widthProperty().divide(6.0);   // 600/6 = 100px at start
+
+        for (ImageView iv : boardDisplay) {
+            iv.fitHeightProperty().bind(boardCardH);
+        }
+
+        card1Label.fitHeightProperty().bind(handCardH);
+        card2Label.fitHeightProperty().bind(handCardH);
+
 
         stage.setTitle("Poker GUI");
         stage.setScene(scene);
@@ -317,7 +318,6 @@ public class PokerFX extends Application {
         try {
             return Integer.parseInt(field.getText().trim());
         } catch (Exception ex) {
-            // can show an error popup later, for now just ignore bad input
             return 0;
         }
     }
