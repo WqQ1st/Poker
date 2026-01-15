@@ -1,4 +1,5 @@
 import java.util.Random;
+//Array "deck" is shuffled randomly and drawn in index order (0, 1, ..., 51).
 
 public class Deck {
     private Card[] deck;
@@ -13,8 +14,13 @@ public class Deck {
 
     public Card draw() {
         Card c = deck[nextIndex];
+        deck[nextIndex] = null;
         nextIndex++;
         return c;
+    }
+
+    public void burn() {
+        nextIndex++;
     }
 
     private void initDeck(Card[] d) {
@@ -33,6 +39,10 @@ public class Deck {
             deck[i] = deck[j];
             deck[j] = temp;
         }
+    }
+
+    public Card getCard(int i) {
+        return deck[i];
     }
 
     @Override

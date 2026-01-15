@@ -14,7 +14,6 @@ import javafx.stage.Stage;
 import javafx.scene.control.TextField;
 import javafx.util.Duration;
 
-import java.net.URL;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -27,12 +26,16 @@ public class PokerFX extends Application {
     private ImageView card1Label;
     private ImageView card2Label;
 
+    private ImageView p2Card1Label;
+    private ImageView p2Card2Label;
+
     private Label msg = new Label("Started!");
 
     private Button potLabel; //pot size
     private Button statusLabel; //current bet, amt to call displayed
     private Button turnLabel; //next to act
     private Button buttonLabel; //who is on button
+    private Button equityBtn; //check equity (cheating, uses other player's card info)
     private TextField amountField; //enter amt for bet/raise
 
     private Button p1Stack;
@@ -41,17 +44,28 @@ public class PokerFX extends Application {
     private Image back;
 
     private boolean faceUp = false;
+    private boolean otherFaceUp = false;
 
     private boolean pendingNextHand = false;
+
+    private ArrayList<Double> equity;
+
+    private boolean equityComputing = false;
+    private javafx.concurrent.Task<ArrayList<Double>> equityTask;
+
 
     @Override
     public void start(Stage stage) {
         table = new Table(this);  // uses existing engine
         table.startNewHand();
 
-        //player cards
+        //current player cards
         card1Label = new ImageView();
         card2Label = new ImageView();
+
+        //other player cards
+        p2Card1Label = new ImageView();
+        p2Card2Label = new ImageView();
 
         //board cards
         ImageView flop1Label = new ImageView();
@@ -62,6 +76,9 @@ public class PokerFX extends Application {
 
         card1Label.setPreserveRatio(true);
         card2Label.setPreserveRatio(true);
+
+        p2Card1Label.setPreserveRatio(true);
+        p2Card2Label.setPreserveRatio(true);
 
         flop1Label.setPreserveRatio(true);
         flop2Label.setPreserveRatio(true);
@@ -78,8 +95,11 @@ public class PokerFX extends Application {
 
         potLabel     = new Button("Pot: 0");
         statusLabel  = new Button("Current bet: ");
+
+        //2nd row
         turnLabel = new Button("To act: " + table.getCurrentPlayer().getName());
         buttonLabel = new Button("Button: " + table.getButtonP().getName());
+        equityBtn = new Button("Equity");
 
         p1Stack = new Button("P1 Stack: ");
         p2Stack = new Button("P2 Stack: ");
@@ -105,24 +125,29 @@ public class PokerFX extends Application {
 
         Button flipBtn = new Button("Flip");
 
+        Button flipOtherBtn = new Button("Flip Other");
+
         Button p1WinsBtn = new Button("P1 wins");
         Button p2WinsBtn = new Button("P2 wins");
         Button splitBtn  = new Button("Split pot");
         Button nextHandBtn = new Button("Next hand");
+
 
         // layout
         VBox root = new VBox(10);
         root.setPadding(new Insets(15));
         root.setAlignment(Pos.TOP_CENTER);
 
-        HBox cardBox = new HBox(30, card1Label, card2Label);
+        HBox otherCards = new HBox(15, p2Card1Label, p2Card2Label);
+
+        HBox cardBox = new HBox(30, card1Label, card2Label, otherCards);
         cardBox.setAlignment(Pos.CENTER);
 
         HBox boardBox = new HBox(5, flop1Label, flop2Label, flop3Label, turn1Label, river1Label); //boardLabel or card png's
         boardBox.setAlignment(Pos.CENTER);
 
 
-        HBox actionButtons = new HBox(10, checkBtn, callBtn, betBtn, foldBtn, flipBtn, raiseBtn, amountField);
+        HBox actionButtons = new HBox(10, checkBtn, callBtn, betBtn, foldBtn, flipBtn, flipOtherBtn, raiseBtn, amountField);
         actionButtons.setAlignment(Pos.CENTER);
 
 
@@ -141,7 +166,9 @@ public class PokerFX extends Application {
                         "-fx-border-color: rgba(0,0,0,0.2);"
         );
 
-        HBox turns = new HBox(10, turnLabel, buttonLabel);
+
+
+        HBox turns = new HBox(10, turnLabel, buttonLabel, equityBtn);
         turns.setAlignment(Pos.CENTER);
 
         root.getChildren().addAll(
@@ -159,10 +186,8 @@ public class PokerFX extends Application {
         raiseBtn.setOnAction(e -> raise());
         foldBtn.setOnAction(e -> fold());
         callBtn.setOnAction(e -> call());
-        flipBtn.setOnAction(e -> {
-            flip();
-            refreshUI();
-        });
+        flipBtn.setOnAction(e -> onFlip());
+        flipOtherBtn.setOnAction(e -> onOtherFlip());
 
         p1WinsBtn.setOnAction(e -> {
             table.awardPotToPlayer(0);
@@ -184,6 +209,8 @@ public class PokerFX extends Application {
             refreshUI();
         });
 
+        equityBtn.setOnAction(e -> onEquity());
+
 
         root.setStyle("-fx-background-color: darkgreen;");
         Scene scene = new Scene(root, 600, 450);
@@ -199,6 +226,7 @@ public class PokerFX extends Application {
         //scales cards with window size
         var boardCardH = scene.widthProperty().divide(7.5);   // 600/7.5 = 80px at start
         var handCardH  = scene.widthProperty().divide(6.0);   // 600/6 = 100px at start
+        var otherHandCardH = scene.widthProperty().divide(12.0);
 
         for (ImageView iv : boardDisplay) {
             iv.fitHeightProperty().bind(boardCardH);
@@ -207,6 +235,9 @@ public class PokerFX extends Application {
         card1Label.fitHeightProperty().bind(handCardH);
         card2Label.fitHeightProperty().bind(handCardH);
 
+        p2Card1Label.fitHeightProperty().bind(otherHandCardH);
+        p2Card2Label.fitHeightProperty().bind(otherHandCardH);
+
 
         stage.setTitle("Poker GUI");
         stage.setScene(scene);
@@ -214,17 +245,73 @@ public class PokerFX extends Application {
 
     }
 
+    private void onEquity() {
+        if (equityComputing) return;          // prevents spamming
+        equityComputing = true;
+
+        equityBtn.setDisable(true);
+        setMsg("Computing equity...");
+
+        equityTask = new javafx.concurrent.Task<>() {
+            @Override
+            protected ArrayList<Double> call() {
+                // heavy work happens here, NOT on the UI thread
+                return table.currEquity();
+            }
+        };
+
+        equityTask.setOnSucceeded(ev -> {
+            equityComputing = false;
+            equityBtn.setDisable(false);
+
+            equity = equityTask.getValue();
+            equityTask = null;
+            setMsg(equityMsg(equity));
+        });
+
+        equityTask.setOnFailed(ev -> {
+            equityComputing = false;
+            equityBtn.setDisable(false);
+
+            Throwable ex = equityTask.getException();
+            equityTask = null;
+            setMsg("Equity failed: " + (ex == null ? "unknown error" : ex.getMessage()));
+        });
+
+        equityTask.setOnCancelled(ev -> {
+            equityComputing = false;
+            equityBtn.setDisable(false);
+            equityTask = null;
+            setMsg("Equity cancelled");
+        });
+
+        Thread t = new Thread(equityTask);
+        t.setDaemon(true);   // so it won’t keep app alive on exit
+        t.start();
+    }
+
     private void updatePlayers() {
         List<Player> ps = table.getPlayers();
         if (ps.size() < 2) {
             return;
         }
+
+        if (!otherFaceUp) {
+            p2Card1Label.setImage(back);
+            p2Card2Label.setImage(back);
+        } else {
+            ArrayList<Card> pCards = table.getOtherPlayer().getHand().getHand();
+            Image img1 = new Image(getClass().getResource("/cards/" + (pCards.get(0).getRank() + 1) + pCards.get(0).getSuitLetter() + "@1x.png").toExternalForm());
+            Image img2 = new Image(getClass().getResource("/cards/" + (pCards.get(1).getRank() + 1) + pCards.get(1).getSuitLetter()  + "@1x.png").toExternalForm());
+            p2Card1Label.setImage(img1);
+            p2Card2Label.setImage(img2);
+        }
+
         if (!faceUp) {
             card1Label.setImage(back);
             card2Label.setImage(back);
         } else {
             ArrayList<Card> pCards = table.getCurrentPlayer().getHand().getHand();
-            //System.out.print(pCards);
             Image img1 = new Image(getClass().getResource("/cards/" + (pCards.get(0).getRank() + 1) + pCards.get(0).getSuitLetter() + "@1x.png").toExternalForm());
             Image img2 = new Image(getClass().getResource("/cards/" + (pCards.get(1).getRank() + 1) + pCards.get(1).getSuitLetter()  + "@1x.png").toExternalForm());
             card1Label.setImage(img1);
@@ -252,10 +339,6 @@ public class PokerFX extends Application {
         updatePlayers();
     }
 
-    public void flip() {
-        faceUp = !faceUp;
-    }
-
 
     private void updateStatus() {
         turnLabel.setText("To act: " + table.getCurrentPlayer().getName());
@@ -266,6 +349,14 @@ public class PokerFX extends Application {
                         + " | Current bet: " + table.getCurrentBet()
                         + " | To call: " + toCall
         );
+    }
+
+    private String equityMsg(ArrayList<Double> eq) {
+        double win = eq.get(0) * 100.0;
+        double draw = eq.get(1) * 100.0;
+        double total = win + draw / 2.0;
+        return String.format(
+                "Win equity: %.2f%%, Draw equity: %.2f%%\nTotal equity: %.2f%%", win, draw, total);
     }
 
     private void refreshUI() {
@@ -279,12 +370,14 @@ public class PokerFX extends Application {
     }
 
     private void check() {
+        cancelEquityIfRunning();
         table.applyActionFromUI(Action.CHECK, 0);
         refreshUI();
         autoNextHandIfOver();
     }
 
     private void call() {
+        cancelEquityIfRunning();
         table.applyActionFromUI(Action.CALL, 0);
         refreshUI();
         autoNextHandIfOver();
@@ -293,6 +386,7 @@ public class PokerFX extends Application {
     private void bet() {
         int amt = parseAmount(amountField);
         if (amt > 0) {
+            cancelEquityIfRunning();
             table.applyActionFromUI(Action.BET, amt);
             refreshUI();
         }
@@ -302,6 +396,7 @@ public class PokerFX extends Application {
     private void raise() {
         int amt = parseAmount(amountField);
         if (amt > 0) {
+            cancelEquityIfRunning();
             table.applyActionFromUI(Action.RAISE, amt);
             refreshUI();
         }
@@ -309,9 +404,20 @@ public class PokerFX extends Application {
     }
 
     private void fold() {
+        cancelEquityIfRunning();
         table.applyActionFromUI(Action.FOLD, 0);
         refreshUI();
         autoNextHandIfOver();
+    }
+
+    private void onFlip() {
+        faceUp = !faceUp;
+        refreshUI();
+    }
+
+    private void onOtherFlip() {
+        otherFaceUp = !otherFaceUp;
+        refreshUI();
     }
 
     private int parseAmount(TextField field) {
@@ -334,11 +440,18 @@ public class PokerFX extends Application {
 
         PauseTransition pause = new PauseTransition(Duration.millis(6000));
         pause.setOnFinished(e -> {
+            cancelEquityIfRunning();
             pendingNextHand = false;
             setMsg("New hand!");
             table.startNewHand();
             refreshUI();
         });
         pause.play();
+    }
+
+    private void cancelEquityIfRunning() {
+        if (equityTask != null && equityTask.isRunning()) {
+            equityTask.cancel();
+        }
     }
 }

@@ -22,11 +22,6 @@ public class Player {
         return name + ", stack: " + Integer.toString(stack) + ", " + hand;
     }
 
-    public void act(Action a) {
-        //TODO: do action
-
-    }
-
     public void setBet(int bet) {
         currentBet = bet;
     }

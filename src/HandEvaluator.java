@@ -30,31 +30,31 @@ public class HandEvaluator {
             String s = "";
             switch (this.cat) {
                 case HIGH_CARD:
-                    s += Card.rankToString(tiebreak[0]) + "High";
+                    s += Card.rankToString(tiebreak[0]) + "high";
                     break;
-                case Category.ONE_PAIR:
-                    s += "A Pair of " + Card.rankToString(tiebreak[0]) + "s";
+                case ONE_PAIR:
+                    s += "a pair of " + Card.rankToString(tiebreak[0]) + "s";
                     break;
-                case Category.TWO_PAIR:
-                    s += "A " + Card.rankToString(tiebreak[0]) + " and " + Card.rankToString(tiebreak[1]) + " Two Pair";
+                case TWO_PAIR:
+                    s += "a " + Card.rankToString(tiebreak[0]) + " and " + Card.rankToString(tiebreak[1]) + " Two Pair";
                     break;
-                case Category.THREE_OF_A_KIND:
-                    s += "Three of a Kind of " + Card.rankToString(tiebreak[0]) + "s";
+                case THREE_OF_A_KIND:
+                    s += "three of a kind of " + Card.rankToString(tiebreak[0]) + "s";
                     break;
-                case Category.STRAIGHT:
-                    s += "A " + Card.rankToString(tiebreak[0]) + " high Straight";
+                case STRAIGHT:
+                    s += "a " + Card.rankToString(tiebreak[0]) + " high Straight";
                     break;
-                case Category.FLUSH:
-                    s += "A " + Card.rankToString(tiebreak[0]) + " high Flush";
+                case FLUSH:
+                    s += "a " + Card.rankToString(tiebreak[0]) + " high Flush";
                     break;
-                case Category.FULL_HOUSE:
-                    s += Card.rankToString(tiebreak[0]) + "s Full of " + Card.rankToString(tiebreak[1])+ "s";
+                case FULL_HOUSE:
+                    s += Card.rankToString(tiebreak[0]) + "s full of " + Card.rankToString(tiebreak[1])+ "s";
                     break;
-                case Category.FOUR_OF_A_KIND:
-                    s += "Quad " + Card.rankToString(tiebreak[0]) + "s";
+                case FOUR_OF_A_KIND:
+                    s += "quad " + Card.rankToString(tiebreak[0]) + "s";
                     break;
-                case Category.STRAIGHT_FLUSH:
-                    s += "A " + Card.rankToString(tiebreak[0]) + " high Straight Flush";
+                case STRAIGHT_FLUSH:
+                    s += "a " + Card.rankToString(tiebreak[0]) + " high straight flush";
                     break;
                 default:
                     throw new IllegalArgumentException("No value assigned");
@@ -201,7 +201,7 @@ public class HandEvaluator {
         return v1.compareTo(v2);
     }
 
-    public int compare7(ArrayList<Card> h1, ArrayList<Card> h2) { //pick 5 best and compare
+    public static int compare7(ArrayList<Card> h1, ArrayList<Card> h2) { //pick 5 best and compare
         if (h1.size() != 7 || h2.size() != 7) {
             throw new IllegalArgumentException("need 7 cards");
         }
@@ -210,7 +210,7 @@ public class HandEvaluator {
         return compare(best1, best2);
     }
 
-    public int compareHands(ArrayList<Card> board, ArrayList<Card> h1, ArrayList<Card> h2) {
+    public static int compareHands(ArrayList<Card> board, ArrayList<Card> h1, ArrayList<Card> h2) {
         if (h1.size() != 2 || h2.size() != 2 || board.size() != 5) {
             throw new IllegalArgumentException("size mismatch");
         }

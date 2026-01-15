@@ -14,7 +14,8 @@ public class Table {
     private Deck deck;
     private boolean roundOver = false;
     private int actionsThisStreet = 0;
-    private int minRaise;
+    private int lastRaiseIncrement;
+
 
     private PokerFX ui;
 
@@ -25,7 +26,7 @@ public class Table {
     private int potThisHand = 0;    // total pot for this hand
     private int currentPlayerIndex = 0;
 
-    private final HandEvaluator handEval = new HandEvaluator();
+    //private final HandEvaluator handEval = new HandEvaluator();
 
     public Table(PokerFX ui) {
         this.ui = ui;
@@ -36,11 +37,10 @@ public class Table {
         players = new ArrayList<>();
         players.add(new Player("p1"));
         players.add(new Player("p2"));
-        minRaise = BB;
     }
 
     public int getMinRaise() {
-        return minRaise;
+        return lastRaiseIncrement;
     }
 
     public void startNewHand() {
@@ -66,6 +66,15 @@ public class Table {
 
         deal(2);
         setupBlindsForNewHand();
+        lastRaiseIncrement = BB;
+    }
+
+    public ArrayList<Double> currEquity() {
+        return board.equity(players.get(currentPlayerIndex).getHand().getHand(), players.get((currentPlayerIndex + 1) % 2).getHand().getHand());
+    }
+
+    public ArrayList<Double> otherEquity() {
+        return board.equity(players.get((currentPlayerIndex + 1) % 2).getHand().getHand(), players.get(currentPlayerIndex).getHand().getHand());
     }
 
     private void resetRoundBets() {
@@ -105,6 +114,10 @@ public class Table {
 
     public Player getCurrentPlayer() {
         return players.get(currentPlayerIndex);
+    }
+
+    public Player getOtherPlayer() {
+        return players.get((currentPlayerIndex + 1) % 2);
     }
 
     public int getCurrentPlayerIndex() {
@@ -159,7 +172,6 @@ public class Table {
     public void applyActionFromUI(Action type, int amount) {
         Player p = getCurrentPlayer();
         int toCall = getToCallForCurrentPlayer();
-        //int minRaise = BB; // simple for now
 
         boolean performed = false; // only true if the action actually happens
 
@@ -204,7 +216,7 @@ public class Table {
                     ui.setMsg("Cannot BET — already a bet, use RAISE.");
                     return;
                 }
-                if (amount <= minRaise || amount > p.getStack() || amount > players.get((currentPlayerIndex + 1) % 2).getStack()) {
+                if (amount < BB || amount > p.getStack() || amount > players.get((currentPlayerIndex + 1) % 2).getStack()) {
                     System.out.println("Invalid bet.");
                     ui.setMsg("Invalid bet.");
                     return;
@@ -215,8 +227,8 @@ public class Table {
                 potThisHand += amount;
                 System.out.printf("%s bets %d. Pot=%d%n", p.getName(), amount, potThisHand);
                 ui.setMsg(p.getName() + " bets " + amount + ". Pot=" + potThisHand);
+                lastRaiseIncrement = amount;
                 performed = true;
-                minRaise = currentBet;
             }
             case RAISE -> {
                 if (currentBet == 0) {
@@ -224,9 +236,9 @@ public class Table {
                     ui.setMsg("Nothing to raise; use BET instead.");
                     return;
                 }
-                if (amount < minRaise) {
-                    System.out.printf("Min raise is %d%n", minRaise);
-                    ui.setMsg("Min raise is " + minRaise);
+                if (amount < lastRaiseIncrement) {
+                    System.out.printf("Min raise is %d%n", lastRaiseIncrement);
+                    ui.setMsg("Min raise is " + lastRaiseIncrement);
                     return;
                 }
                 int target = currentBet + amount;
@@ -247,8 +259,8 @@ public class Table {
                 currentBet = target;
                 System.out.printf("%s raises by %d to %d. Pot=%d%n", p.getName(), amount, currentBet, potThisHand);
                 ui.setMsg(p.getName() + " raises by " + amount + " to " + currentBet + ". Pot=" + potThisHand);
+                lastRaiseIncrement = amount;
                 performed = true;
-                minRaise = need;
             }
         }
 
@@ -305,6 +317,7 @@ public class Table {
             p.setBet(0);
         }
         actionsThisStreet = 0;
+        lastRaiseIncrement = BB;
     }
 
     private void advanceStreet() {
@@ -343,7 +356,6 @@ public class Table {
         }
 
         if (isBettingRoundComplete()) {
-            minRaise = BB;
             advanceStreet();
         }
     }
@@ -423,7 +435,7 @@ public class Table {
         }
         ArrayList<Card> h1 = players.get(activeIdx.get(0)).getHand().getHand();
         ArrayList<Card> h2 = players.get(activeIdx.get(1)).getHand().getHand();
-        int diff = handEval.compareHands(board.getBoard(), h1, h2);
+        int diff = HandEvaluator.compareHands(board.getBoard(), h1, h2);
         if (diff == 0) {
             splitPotBetweenActivePlayers();
         } else if (diff > 0) {
