@@ -25,6 +25,8 @@ public class GameState {
         public int stack;
         public int bet;
         public boolean inHand;
-        public ArrayList<CardDTO> hole = new ArrayList<>();
+        public ArrayList<CardDTO> hand = new ArrayList<>();
+
+
     }
 }

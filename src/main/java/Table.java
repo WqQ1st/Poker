@@ -1,3 +1,6 @@
+import data.CardDTO;
+import data.GameState;
+
 import java.util.ArrayList;
 import java.util.List;
 
@@ -471,5 +474,30 @@ public class Table {
         potThisHand = 0;
         resetRoundBets();
         advanceButton();
+    }
+
+    public GameState toState() {
+        GameState gs = new GameState();
+        gs.button = this.button;
+        gs.currentPlayerIndex = this.currentPlayerIndex;
+        gs.lastRaiseIncrement = this.lastRaiseIncrement;
+        gs.actionsThisStreet = this.actionsThisStreet;
+        gs.street = this.street.name();
+        gs.potThisHand = this.potThisHand;
+        gs.currentBet = this.currentBet;
+
+        gs.players = new ArrayList<>();
+        for (Player p: players) {
+            GameState.PlayerState ps = new GameState.PlayerState();
+            ps.name = p.getName();
+            ps.stack = p.getStack();
+            ps.bet = p.getBet();
+            ps.inHand = p.isIn();
+            ps.hand = CardDTO.fromCards(p.getHand().getHand());
+            gs.players.add(ps);
+        }
+
+
+        return gs;
     }
 }

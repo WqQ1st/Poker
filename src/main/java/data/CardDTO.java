@@ -1,3 +1,6 @@
 package data;
 
-public record CardDTO(int suit, int rank) {}
+import java.util.ArrayList;
+
+public record CardDTO(int suit, int rank) {
+}
