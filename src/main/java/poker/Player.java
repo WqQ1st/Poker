@@ -1,5 +1,9 @@
 package poker;
 
+import poker.data.CardDTO;
+
+import java.util.ArrayList;
+
 public class Player {
     private Hand hand;
     private String name;
@@ -10,6 +14,14 @@ public class Player {
     public Player(String n) {
         hand = new Hand();
         name = n;
+    }
+
+    public Player(String name, int stack, int bet, boolean inHand, ArrayList<Card> hand) {
+        this.name = name;
+        this.stack = stack;
+        this.currentBet = bet;
+        isIn = inHand;
+        this.hand = new Hand(hand);
     }
 
     public Hand getHand() {
@@ -58,5 +70,17 @@ public class Player {
 
     public void clearHand() {
         hand = new Hand();
+    }
+
+    public void setName(String name) {
+        this.name = name;
+    }
+
+    public void setIn(boolean b) {
+        isIn = b;
+    }
+
+    public void setHand(ArrayList<CardDTO> hand) {
+        this.hand.setHand(CardDTO.toCards(hand));
     }
 }

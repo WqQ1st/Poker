@@ -1,6 +1,7 @@
 package poker.data;
 
 import java.util.ArrayList;
+import poker.Card;
 
 
 public class GameState {
@@ -13,20 +14,31 @@ public class GameState {
     public int actionsThisStreet;
     public int lastRaiseIncrement;
 
-    public ArrayList<PlayerState> players = new ArrayList<>();
-    public ArrayList<CardDTO> board = new ArrayList<>();
+    public ArrayList<PlayerDTO> players;
 
     // exact resume
-    public ArrayList<CardDTO> deckOrder = new ArrayList<>();
+    public CardDTO[] deck;
+    public long seed;
     public int nextIndex;
+    public ArrayList<CardDTO> board;
 
-    public static class PlayerState {
-        public String name;
-        public int stack;
-        public int bet;
-        public boolean inHand;
-        public ArrayList<CardDTO> hand = new ArrayList<>();
+    public static CardDTO[] dtoDeck(Card[] e) {
+        CardDTO[] d = new CardDTO[52];
+        for (int i = 0; i < 52; i++) {
+            if (e[i] != null) {
+                d[i] = CardDTO.fromCard(e[i]);
+            }
+        }
+        return d;
+    }
 
-
+    public static Card[] fromdtoDeck(CardDTO[] e) {
+        Card[] d = new Card[52];
+        for (int i = 0; i < 52; i++) {
+            if (e[i] != null) {
+                d[i] = CardDTO.toCard(e[i]);
+            }
+        }
+        return d;
     }
 }

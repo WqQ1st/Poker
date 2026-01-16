@@ -6,8 +6,10 @@ import java.util.Random;
 public class Deck {
     private Card[] deck;
     private int nextIndex;
+    private long seed;
 
     public Deck(long seed) {
+        this.seed = seed;
         nextIndex = 0;
         deck = new Card[52];
         initDeck(deck);
@@ -47,6 +49,10 @@ public class Deck {
         return deck[i];
     }
 
+    public long getSeed() {
+        return seed;
+    }
+
     @Override
     public String toString() {
         String s = "";
@@ -54,5 +60,35 @@ public class Deck {
             s += deck[i] + " ";
         }
         return s;
+    }
+
+    public int getNextIndex() {
+        return nextIndex;
+    }
+
+    public void setDeck(Card[] d) {
+        if (d.length != 52) {
+            throw new IllegalArgumentException("Deck length is invalid");
+        }
+        deck = d;
+    }
+
+    public Card[] getDeck() {
+        return deck;
+    }
+
+    public void setNextIndex(int i) {
+        nextIndex = i;
+    }
+
+    public void setSeed(long s) {
+        seed = s;
+    }
+
+    public void reset(long seed) {
+        this.seed = seed;
+        initDeck(deck);
+        nextIndex = 0;
+        shuffle(seed);
     }
 }

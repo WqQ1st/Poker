@@ -12,6 +12,10 @@ public class Board {
         board = new Card[5];
     }
 
+    public Deck getDeck() {
+        return deck;
+    }
+
     public ArrayList<Card> getBoard() {
         ArrayList<Card> cards = new ArrayList<>();
         for (Card c : board) {
@@ -156,6 +160,28 @@ public class Board {
         result.add((double) numDraw / numTotal);
         return result;
     }
+
+    public void clear() {
+        for (int i = 0; i < 5; i++) {
+            board[i] = null;
+        }
+        numCards = 0;
+    }
+
+    public void addCard(Card c) {
+        if (numCards == 5) {
+            throw new IllegalArgumentException("Board already has 5 cards");
+        }
+        board[numCards] = c;
+        numCards++;
+    }
+
+    public void setDeck(Card[] d, long s) {
+        deck.setDeck(d);
+        deck.setSeed(s);
+    }
+
+
 
     @Override
     public String toString() {

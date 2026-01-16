@@ -2,6 +2,7 @@ package poker;
 
 import poker.data.CardDTO;
 import poker.data.GameState;
+import poker.data.PlayerDTO;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -20,6 +21,7 @@ public class Table {
     private boolean roundOver = false;
     private int actionsThisStreet = 0;
     private int lastRaiseIncrement;
+    private long seed;
 
 
     private PokerFX ui;
@@ -36,6 +38,7 @@ public class Table {
     public Table(PokerFX ui) {
         this.ui = ui;
         long seed = System.nanoTime();
+        this.seed = seed;
         deck = new Deck(seed);
         board = new Board(deck); //hardcode seed for consistency
         button = 0;
@@ -52,7 +55,7 @@ public class Table {
         System.out.println("=== START NEW HAND === button=" + button
                 + " stacks=" + players.get(0).getStack() + "," + players.get(1).getStack());
         // New deck and board for each hand
-        long seed = System.nanoTime();
+        seed = System.nanoTime();
         deck = new Deck(seed);
         board = new Board(deck);
 
@@ -480,6 +483,8 @@ public class Table {
 
     public GameState toState() {
         GameState gs = new GameState();
+
+        //table related
         gs.button = this.button;
         gs.currentPlayerIndex = this.currentPlayerIndex;
         gs.lastRaiseIncrement = this.lastRaiseIncrement;
@@ -488,18 +493,38 @@ public class Table {
         gs.potThisHand = this.potThisHand;
         gs.currentBet = this.currentBet;
 
-        gs.players = new ArrayList<>();
-        for (Player p: players) {
-            GameState.PlayerState ps = new GameState.PlayerState();
-            ps.name = p.getName();
-            ps.stack = p.getStack();
-            ps.bet = p.getBet();
-            ps.inHand = p.isIn();
-            ps.hand = CardDTO.fromCards(p.getHand().getHand());
-            gs.players.add(ps);
-        }
-
+        //player, board, deck
+        gs.players = PlayerDTO.fromPlayers(players);
+        gs.nextIndex = board.getDeck().getNextIndex();
+        gs.deck = GameState.dtoDeck(board.getDeck().getDeck());
+        gs.board = CardDTO.fromCards(getBoard().getBoard());
+        gs.seed = seed;
 
         return gs;
+    }
+
+    public void loadState(GameState gs) {
+        //load players
+        PlayerDTO.applyToPlayers(gs.players, players);
+
+        //load board, deck, seed
+        board.clear();
+        for (Card c : CardDTO.toCards(gs.board)) {
+            board.addCard(c);
+        }
+        seed = gs.seed;
+        board.setDeck(GameState.fromdtoDeck(gs.deck), seed);
+        board.getDeck().setNextIndex(gs.nextIndex);
+
+
+        //load table
+        button = gs.button;
+        currentPlayerIndex = gs.currentPlayerIndex;
+        lastRaiseIncrement = gs.lastRaiseIncrement;
+        actionsThisStreet = gs.actionsThisStreet;
+        potThisHand = gs.potThisHand;
+        currentBet = gs.currentBet;
+        street = Street.valueOf(gs.street);
+
     }
 }
