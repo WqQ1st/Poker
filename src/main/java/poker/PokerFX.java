@@ -1,5 +1,7 @@
 package poker;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
 import javafx.animation.PauseTransition;
 import javafx.application.Application;
 import javafx.geometry.Insets;
@@ -12,10 +14,13 @@ import javafx.scene.image.ImageView;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
 import javafx.scene.text.Font;
+import javafx.stage.FileChooser;
 import javafx.stage.Stage;
 import javafx.scene.control.TextField;
 import javafx.util.Duration;
+import poker.data.GameState;
 
+import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -43,6 +48,9 @@ public class PokerFX extends Application {
     private Button p1Stack;
     private Button p2Stack;
 
+    private Button load;
+    private Button save;
+
     private Image back;
 
     private boolean faceUp = false;
@@ -54,6 +62,10 @@ public class PokerFX extends Application {
 
     private boolean equityComputing = false;
     private javafx.concurrent.Task<ArrayList<Double>> equityTask;
+
+    //for writing json
+    private final ObjectMapper mapper = new ObjectMapper().enable(SerializationFeature.INDENT_OUTPUT);
+
 
 
     @Override
@@ -129,10 +141,13 @@ public class PokerFX extends Application {
 
         Button flipOtherBtn = new Button("Flip Other");
 
+        /*
         Button p1WinsBtn = new Button("P1 wins");
         Button p2WinsBtn = new Button("P2 wins");
         Button splitBtn  = new Button("Split pot");
         Button nextHandBtn = new Button("Next hand");
+
+         */
 
 
         // layout
@@ -153,8 +168,8 @@ public class PokerFX extends Application {
         actionButtons.setAlignment(Pos.CENTER);
 
 
-        HBox showdownBox = new HBox(10, p1WinsBtn, p2WinsBtn, splitBtn, nextHandBtn);
-        showdownBox.setAlignment(Pos.CENTER);
+        //HBox showdownBox = new HBox(10, p1WinsBtn, p2WinsBtn, splitBtn, nextHandBtn);
+        //showdownBox.setAlignment(Pos.CENTER);
 
         HBox stacks = new HBox(10, p1Stack, potLabel, p2Stack);
         stacks.setAlignment(Pos.CENTER);
@@ -173,6 +188,12 @@ public class PokerFX extends Application {
         HBox turns = new HBox(10, turnLabel, buttonLabel, equityBtn);
         turns.setAlignment(Pos.CENTER);
 
+
+        //save, load
+        save = new Button("Save");
+        load = new Button("Load");
+        HBox sl = new HBox(10, save, load);
+
         root.getChildren().addAll(
                 boardBox,
                 stacks,
@@ -180,7 +201,8 @@ public class PokerFX extends Application {
                 actionButtons,
                 statusLabel,
                 cardBox,
-                msg
+                msg,
+                sl
         );
 
         checkBtn.setOnAction(e -> check());
@@ -191,6 +213,10 @@ public class PokerFX extends Application {
         flipBtn.setOnAction(e -> onFlip());
         flipOtherBtn.setOnAction(e -> onOtherFlip());
 
+        //save, load button actions
+        save.setOnAction(e -> save());
+        load.setOnAction(e -> load());
+/*
         p1WinsBtn.setOnAction(e -> {
             table.awardPotToPlayer(0);
             refreshUI();
@@ -206,10 +232,14 @@ public class PokerFX extends Application {
             refreshUI();
         });
 
+
+
         nextHandBtn.setOnAction(e -> {
             table.startNewHand();
             refreshUI();
         });
+
+ */
 
         equityBtn.setOnAction(e -> onEquity());
 
@@ -245,6 +275,56 @@ public class PokerFX extends Application {
         stage.setScene(scene);
         stage.show();
 
+    }
+
+    public void save() {
+        //TODO: implement save
+        cancelEquityIfRunning();
+
+        FileChooser fc = new FileChooser();
+        fc.setTitle("Save Poker Game");
+        fc.getExtensionFilters().add(new FileChooser.ExtensionFilter("Poker Save (JSON)", "*.json"));
+        fc.setInitialFileName("poker_save.json");
+
+        File f = fc.showSaveDialog(msg.getScene().getWindow());
+        if (f == null) return;
+
+        try {
+            GameState state = table.toState();
+
+            mapper.writeValue(f, state);
+            setMsg("Saved: " + f.getName());
+        } catch (Exception ex) {
+            setMsg("Save failed: " + ex.getMessage());
+        }
+    }
+
+    public void load(){
+        //TODO: implement load
+        cancelEquityIfRunning();
+
+        FileChooser fc = new FileChooser();
+        fc.setTitle("Load Poker Game");
+        fc.getExtensionFilters().add(new FileChooser.ExtensionFilter("Poker Save (JSON)", "*.json"));
+
+        File f = fc.showOpenDialog(msg.getScene().getWindow());
+        if (f == null) return;
+
+        try {
+            GameState state = mapper.readValue(f, GameState.class);
+
+            // reset UI only flags so loaded state displays predictably
+            faceUp = false;
+            otherFaceUp = false;
+            pendingNextHand = false;
+
+            table.loadState(state);
+
+            refreshUI();
+            setMsg("Loaded: " + f.getName());
+        } catch (Exception ex) {
+            setMsg("Load failed: " + ex.getMessage());
+        }
     }
 
     private void onEquity() {

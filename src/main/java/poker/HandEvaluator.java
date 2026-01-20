@@ -32,7 +32,7 @@ public class HandEvaluator {
             String s = "";
             switch (this.cat) {
                 case HIGH_CARD:
-                    s += Card.rankToString(tiebreak[0]) + "high";
+                    s += Card.rankToString(tiebreak[0]) + " high";
                     break;
                 case ONE_PAIR:
                     s += "a pair of " + Card.rankToString(tiebreak[0]) + "s";
