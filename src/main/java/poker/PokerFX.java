@@ -277,6 +277,13 @@ public class PokerFX extends Application {
 
     }
 
+    @Override
+    public void stop() {
+        if (table != null) {
+            table.shutdown();
+        }
+    }
+
     public void save() {
         //TODO: implement save
         cancelEquityIfRunning();

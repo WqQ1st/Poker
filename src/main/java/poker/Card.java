@@ -33,12 +33,13 @@ public class Card {
 
     @Override
     public String toString() {
-        String[] ranks = {"2","3","4","5","6","7","8","9","T","J","Q","K","A"};
-        String[] suits = {"♣", "♦", "♥", "♠"};
-        return ranks[rank - 1] + suits[suit - 1];
+//        String[] ranks = {"2", "3", "4", "5", "6", "7", "8", "9", "T", "J", "Q", "K", "A"};
+//        String[] suits = {"♣", "♦", "♥", "♠"};
+//        return ranks[rank - 1] + suits[suit - 1];
+        return rankToString(rank) + suitToString(suit);
     }
 
-    static String rankToString(int r) {
+    public static String rankToString(int r) {
         return switch (r) {
             case 1 -> "2";
             case 2 -> "3";
@@ -48,11 +49,21 @@ public class Card {
             case 6 -> "7";
             case 7 -> "8";
             case 8 -> "9";
-            case 9 -> "10";
+            case 9 -> "T";
             case 10 -> "J";
             case 11 -> "Q";
             case 12 -> "K";
             case 13 -> "A";
+            default -> "?";
+        };
+    }
+
+    public static String suitToString(int s) {
+        return switch (s) {
+            case 1 -> "c";
+            case 2 -> "d";
+            case 3 -> "h";
+            case 4 -> "s";
             default -> "?";
         };
     }

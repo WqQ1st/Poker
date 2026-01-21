@@ -1,11 +1,11 @@
 package poker;
 
-import poker.data.CardDTO;
-import poker.data.GameState;
-import poker.data.PlayerDTO;
+import poker.data.*;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.time.Instant;
+import java.util.*;
 
 public class Table {
     public enum Street {
@@ -18,10 +18,13 @@ public class Table {
     private final int SB = 1; //small blind
     private final ArrayList<Player> players;
     private Deck deck;
-    private boolean roundOver = false;
     private int actionsThisStreet = 0;
     private int lastRaiseIncrement;
     private long seed;
+
+    private int handId = -1; //or 0 for 1-indexing; starting a new hand increments by 1
+    private String sessionId;
+    private LogWriter logger;
 
 
     private PokerFX ui;
@@ -45,6 +48,13 @@ public class Table {
         players = new ArrayList<>();
         players.add(new Player("p1"));
         players.add(new Player("p2"));
+        sessionId = UUID.randomUUID().toString(); //assign unique sessionId
+        Path logPath = Paths.get("logs", "pokerfx_" + sessionId + ".jsonl");
+        try {
+            this.logger = new LogWriter(logPath);
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to create logger", e);
+        }
     }
 
     public int getMinRaise() {
@@ -55,6 +65,8 @@ public class Table {
         System.out.println("=== START NEW HAND === button=" + button
                 + " stacks=" + players.get(0).getStack() + "," + players.get(1).getStack());
         // New deck and board for each hand
+        handId++;
+
         seed = System.nanoTime();
         deck = new Deck(seed);
         board = new Board(deck);
@@ -183,16 +195,30 @@ public class Table {
 
         boolean performed = false; // only true if the action actually happens
 
+        //all prev fields, kept for logging
+        int potBefore = potThisHand;
+        int currentBetBefore = currentBet;
+        int actionsBefore = actionsThisStreet;
+        int lastRaiseBefore = lastRaiseIncrement;
+        Street streetBefore = street;
+        int playerBetBefore = p.getBet();
+        int playerStackBefore = p.getStack();
+        int toCallBefore = toCall;
+        int amountPaid = 0;
+        int raiseIncrement = 0;
+        int playerIndex = currentPlayerIndex;
+
+        var stacksBefore = snapshotStacks();
+        var betsBefore = snapshotBets();
+
+
+
         switch (type) {
             case FOLD -> {
                 p.out();
                 System.out.printf("%s folds.%n", p.getName());
                 ui.setMsg(p.getName() + " folds.");
-                int winner = findLastActivePlayerIndex();
-                if (winner != -1) {
-                    awardFold(winner);
-                }
-                return;
+                performed = true;
             }
             case CHECK -> {
                 if (toCall > 0) {
@@ -217,6 +243,7 @@ public class Table {
                 System.out.printf("%s calls %d. Pot=%d%n", p.getName(), pay, potThisHand);
                 ui.setMsg(p.getName() + " calls " + pay + ". Pot=" + potThisHand);
                 performed = true;
+                amountPaid = pay;
             }
             case BET -> {
                 if (currentBet != 0) {
@@ -237,6 +264,8 @@ public class Table {
                 ui.setMsg(p.getName() + " bets " + amount + ". Pot=" + potThisHand);
                 lastRaiseIncrement = amount;
                 performed = true;
+                amountPaid = amount;
+                raiseIncrement = amount;
             }
             case RAISE -> {
                 if (currentBet == 0) {
@@ -269,12 +298,55 @@ public class Table {
                 ui.setMsg(p.getName() + " raises by " + amount + " to " + currentBet + ". Pot=" + potThisHand);
                 lastRaiseIncrement = amount;
                 performed = true;
+                amountPaid = need;
+                raiseIncrement = amount;
             }
         }
 
         if (!performed) {
             // invalid action, do not move turn or change street
+
             return;
+        } else {
+            //log
+            LogEvent e = new LogEvent(
+                    Instant.now().toString(),
+                    sessionId,
+                    handId,
+                    "ACTION",
+                    streetBefore.name(),
+                    p.getName(),
+                    playerIndex,
+                    type.name(),
+                    amountPaid,
+                    raiseIncrement,
+                    toCallBefore,
+                    lastRaiseBefore,
+                    potBefore,
+                    potThisHand,
+                    currentBetBefore,
+                    currentBet,
+                    stacksBefore,
+                    betsBefore,
+                    snapshotStacks(),
+                    snapshotBets(),
+                    snapshotBoard()
+            );
+
+
+            try {
+                logger.append(e);
+            } catch (Exception ex) {
+                System.out.println("LOGGING FAILED: " + ex.getMessage());
+            }
+            if (type == Action.FOLD) {
+                int winner = findLastActivePlayerIndex();
+                if (winner != -1) {
+                    awardFold(winner);
+                }
+                return;
+            }
+
         }
 
         actionsThisStreet++;
@@ -286,6 +358,30 @@ public class Table {
 
         // possibly end betting round or hand
         maybeAdvanceAfterAction();
+    }
+
+    private Map<String, Integer> snapshotStacks() {
+        Map<String, Integer> stacks = new HashMap<>();
+        for (Player p : players) {
+            stacks.put(p.getName(), p.getStack());
+        }
+        return stacks;
+    }
+
+    private Map<String, Integer> snapshotBets() {
+        Map<String, Integer> bets = new HashMap<>();
+        for (Player p : players) {
+            bets.put(p.getName(), p.getBet());
+        }
+        return bets;
+    }
+
+    private List<String> snapshotBoard() {
+        List<String> board = new ArrayList<>();
+        for (Card c : this.board.getBoard()) {
+            board.add(c.toString());
+        }
+        return board;
     }
 
     public Street getStreet() {
@@ -329,7 +425,15 @@ public class Table {
     }
 
     private void advanceStreet() {
-        resetBetsForNewStreet();
+        //before fields
+        Street beforeStreet = street;
+        int potBefore = potThisHand;
+        int currentBetBefore = currentBet;
+        var stacksBefore = snapshotStacks();
+        var betsBefore = snapshotBets();
+        var boardBefore = snapshotBoard();
+        int minRaiseBefore = lastRaiseIncrement;
+
 
         switch (street) {
             case PREFLOP -> {
@@ -346,23 +450,75 @@ public class Table {
             }
             case RIVER -> {
                 street = Street.SHOWDOWN;
-                resolveShowdown();
-                //startNewHand();
             }
             default -> {
+                return;
             }
         }
-    }
-    private void maybeAdvanceAfterAction() {
-        if (isHandOver()) {
-            street = Street.SHOWDOWN;
-            //System.out.println("Hand over by fold.");
-            // TODO: award pot to remaining player
-            return;
 
-
+        if (street != Street.SHOWDOWN) {
+            resetBetsForNewStreet();
         }
 
+        if (street == Street.FLOP || street == Street.TURN || street == Street.RIVER) {
+            currentPlayerIndex = button; // button acts first postflop, heads up
+        }
+
+        logSystemEvent(
+                "STREET_ADVANCE",
+                beforeStreet.name() + "_TO_" + street.name(),
+                beforeStreet,
+                minRaiseBefore,
+                potBefore,
+                currentBetBefore,
+                stacksBefore,
+                betsBefore,
+                boardBefore
+        );
+
+        if (street == Street.SHOWDOWN) {
+            resolveShowdown();
+        }
+    }
+
+    private void logSystemEvent(String eventType, String action, Street streetBefore, int minRaiseBefore,
+                                int potBefore, int currentBetBefore,
+                                Map<String, Integer> stacksBefore, Map<String, Integer> betsBefore,
+                                List<String> boardBefore) {
+
+        LogEvent e = new LogEvent(
+                Instant.now().toString(),
+                sessionId,
+                handId,
+                eventType,
+                streetBefore.name(),
+                "SYSTEM",
+                -1,
+                action,
+                0,
+                0,
+                0,
+                minRaiseBefore,
+                potBefore,
+                potThisHand,
+                currentBetBefore,
+                currentBet,
+                stacksBefore,
+                betsBefore,
+                snapshotStacks(),
+                snapshotBets(),
+                boardBefore
+        );
+
+        try {
+            logger.append(e);
+        } catch (Exception ex) {
+            System.out.println("LOGGING FAILED: " + ex.getMessage());
+        }
+    }
+
+
+    private void maybeAdvanceAfterAction() {
         if (isBettingRoundComplete()) {
             advanceStreet();
         }
@@ -526,5 +682,16 @@ public class Table {
         currentBet = gs.currentBet;
         street = Street.valueOf(gs.street);
 
+    }
+
+    public void shutdown() {
+        try {
+            if (logger != null) {
+                logger.close();
+            }
+        } catch (Exception e) {
+            System.out.println("Could not close properly");
+            //e.printStackTrace();
+        }
     }
 }
