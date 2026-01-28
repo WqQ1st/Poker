@@ -225,6 +225,9 @@ public class Table {
     }
 
     public void applyActionFromUI(Action type, int amount) {
+        if (handId < 0 || potThisHand == 0 || street == Street.SHOWDOWN) {
+            return;
+        }
         Player p = getCurrentPlayer();
         int toCall = getToCallForCurrentPlayer();
 
@@ -387,9 +390,6 @@ public class Table {
             advanceToNextPlayer();
         }
 
-        // possibly end betting round or hand
-        maybeAdvanceAfterAction();
-
         //log
         seq++;
         LogEvent e = new LogEvent(
@@ -398,7 +398,7 @@ public class Table {
                 handId,
                 seq,
                 "ACTION",
-                street.name(),
+                streetBefore.name(),
                 button,
                 currentPlayerIndex,
                 p.getName(),
@@ -426,6 +426,10 @@ public class Table {
         } catch (Exception ex) {
             System.out.println("LOGGING FAILED: " + ex.getMessage());
         }
+
+        // possibly end betting round or hand
+        maybeAdvanceAfterAction();
+
     }
 
     private Map<String, Integer> snapshotStacks() {
@@ -564,7 +568,7 @@ public class Table {
                 button,
                 currentPlayerIndex, //toActIdx
                 "SYSTEM",
-                -1,
+                null,
                 action,
                 0,
                 0,
