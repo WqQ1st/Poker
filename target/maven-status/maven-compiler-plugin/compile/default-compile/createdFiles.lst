@@ -1,1 +1,4 @@
+poker/data/LogEvent.class
+poker/data/LogWriter.class
 poker/data/PlayerDTO.class
+poker/tools/SqLiteBuilder.class
