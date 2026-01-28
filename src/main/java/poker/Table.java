@@ -36,6 +36,11 @@ public class Table {
     private int potThisHand = 0;    // total pot for this hand
     private int currentPlayerIndex = 0;
 
+    private Integer seq = 0;
+
+
+
+
     //private final HandEvaluator handEval = new HandEvaluator();
 
     public Table(PokerFX ui) {
@@ -66,6 +71,7 @@ public class Table {
                 + " stacks=" + players.get(0).getStack() + "," + players.get(1).getStack());
         // New deck and board for each hand
         handId++;
+        seq = 0;
 
         seed = System.nanoTime();
         deck = new Deck(seed);
@@ -73,7 +79,7 @@ public class Table {
 
         potThisHand = 0;
         currentBet = 0;
-        roundOver = false;
+        //roundOver = false;
         street = Street.PREFLOP;
         actionsThisStreet = 0;
 
@@ -87,6 +93,35 @@ public class Table {
         deal(2);
         setupBlindsForNewHand();
         lastRaiseIncrement = BB;
+
+        LogEvent e = new LogEvent(
+                Instant.now().toString(),
+                sessionId,
+                handId,
+                seq,
+                "HAND_START", //eventType
+                null, //street
+                button, //buttonidx
+                currentPlayerIndex, //toActIdx
+                null, //playerName
+                null, //playerIndex
+                null, //action
+                null, //amount paid
+                null, //raiseIncrement
+                null, //toCallBefore
+                null, //lastRaiseBefore
+                potThisHand, //potBefore
+                potThisHand, //potAfter
+                0, //currentBetBefore
+                currentBet,
+                snapshotStacks(),
+                snapshotBets(), //betsBefore
+                null, //stacksAfter
+                null, //betsAfter
+                snapshotBoard(),
+                snapshotHoleCards()
+        );
+        logger.append(e);
     }
 
     public ArrayList<Double> currEquity() {
@@ -307,14 +342,19 @@ public class Table {
             // invalid action, do not move turn or change street
 
             return;
-        } else {
-            //log
+        }
+
+        if (type == Action.FOLD) {
+            seq++;
             LogEvent e = new LogEvent(
                     Instant.now().toString(),
                     sessionId,
                     handId,
+                    seq,
                     "ACTION",
-                    streetBefore.name(),
+                    street.name(),
+                    button,
+                    null,
                     p.getName(),
                     playerIndex,
                     type.name(),
@@ -330,23 +370,14 @@ public class Table {
                     betsBefore,
                     snapshotStacks(),
                     snapshotBets(),
-                    snapshotBoard()
+                    snapshotBoard(),
+                    snapshotHoleCards()
             );
+            logger.append(e);
 
-
-            try {
-                logger.append(e);
-            } catch (Exception ex) {
-                System.out.println("LOGGING FAILED: " + ex.getMessage());
-            }
-            if (type == Action.FOLD) {
-                int winner = findLastActivePlayerIndex();
-                if (winner != -1) {
-                    awardFold(winner);
-                }
-                return;
-            }
-
+            int winner = findLastActivePlayerIndex();
+            if (winner != -1) awardFold(winner);
+            return;
         }
 
         actionsThisStreet++;
@@ -358,6 +389,43 @@ public class Table {
 
         // possibly end betting round or hand
         maybeAdvanceAfterAction();
+
+        //log
+        seq++;
+        LogEvent e = new LogEvent(
+                Instant.now().toString(),
+                sessionId,
+                handId,
+                seq,
+                "ACTION",
+                street.name(),
+                button,
+                currentPlayerIndex,
+                p.getName(),
+                playerIndex,
+                type.name(),
+                amountPaid,
+                raiseIncrement,
+                toCallBefore,
+                lastRaiseBefore,
+                potBefore,
+                potThisHand,
+                currentBetBefore,
+                currentBet,
+                stacksBefore,
+                betsBefore,
+                snapshotStacks(),
+                snapshotBets(),
+                snapshotBoard(),
+                snapshotHoleCards()
+        );
+
+
+        try {
+            logger.append(e);
+        } catch (Exception ex) {
+            System.out.println("LOGGING FAILED: " + ex.getMessage());
+        }
     }
 
     private Map<String, Integer> snapshotStacks() {
@@ -485,13 +553,16 @@ public class Table {
                                 int potBefore, int currentBetBefore,
                                 Map<String, Integer> stacksBefore, Map<String, Integer> betsBefore,
                                 List<String> boardBefore) {
-
+        seq++;
         LogEvent e = new LogEvent(
                 Instant.now().toString(),
                 sessionId,
                 handId,
+                seq,
                 eventType,
-                streetBefore.name(),
+                street.name(),
+                button,
+                currentPlayerIndex, //toActIdx
                 "SYSTEM",
                 -1,
                 action,
@@ -507,7 +578,8 @@ public class Table {
                 betsBefore,
                 snapshotStacks(),
                 snapshotBets(),
-                boardBefore
+                snapshotBoard(),
+                snapshotHoleCards()
         );
 
         try {
@@ -530,13 +602,14 @@ public class Table {
         }
 
         Player winner = players.get(winnerIndex);
+        Map<String, Integer> stacksBefore = snapshotStacks();
         winner.setStack(winner.getStack() + potThisHand);
         ArrayList<Card> seven = new ArrayList<>(winner.getHand().getHand());
         seven.addAll(board.getBoard());
         HandEvaluator.HandValue hv = HandEvaluator.eval5(HandEvaluator.bestHand(seven));
         System.out.printf("%s wins %d chips with %s.%n", winner.getName(), potThisHand, hv.toString());
         ui.setMsg(winner.getName() + " wins " + potThisHand + " chips with " + hv.toString());
-        endHandAndPrepNext();
+        endHandAndPrepNext(stacksBefore);
     }
 
     public void awardFold(int winnerIndex) {
@@ -544,14 +617,16 @@ public class Table {
             throw new IllegalArgumentException("Invalid player index");
         }
         Player winner = players.get(winnerIndex);
+        Map<String, Integer> stacksBefore = snapshotStacks();
         winner.setStack(winner.getStack() + potThisHand);
         System.out.printf("Opponent folds; %s wins %d chips.%n", winner.getName(), potThisHand);
         ui.setMsg("Opponent folds, " + winner.getName() + " wins " + potThisHand + " chips.");
-        endHandAndPrepNext();
+        endHandAndPrepNext(stacksBefore);
     }
 
     public void splitPotBetweenActivePlayers() {
         // simple 2-player split for now
+        Map<String, Integer> stacksBefore = snapshotStacks();
         int activeCount = 0;
         for (Player p : players) {
             if (p.isIn()) activeCount++;
@@ -578,7 +653,7 @@ public class Table {
 
         System.out.printf("Pot %d split among %d players.%n", potThisHand, activeCount);
         ui.setMsg("Pot " + potThisHand + " split among " + activeCount + " players.");
-        endHandAndPrepNext();
+        endHandAndPrepNext(stacksBefore);
     }
 
     private void resolveShowdown() { //decides winner and awards
@@ -630,7 +705,36 @@ public class Table {
         return players.get(button);
     }
 
-    private void endHandAndPrepNext() {
+    private void endHandAndPrepNext(Map<String, Integer> stacksBefore) {
+        seq++;
+        LogEvent e = new LogEvent(
+                Instant.now().toString(),
+                sessionId,
+                handId,
+                seq,
+                "HAND_END", //eventType
+                null, //street
+                button,
+                null, //toActIdx
+                null, //playerName
+                null, //playerIndex
+                null, //action
+                null, //amount paid
+                null, //raiseIncrement
+                null, //toCallBefore
+                null, //lastRaiseBefore
+                potThisHand, //potBefore
+                0, //potAfter
+                0, //currentBetBefore
+                0, //currentBetAfter
+                stacksBefore, //stacksBefore
+                snapshotBets(), //betsBefore
+                snapshotStacks(), //stacksAfter
+                null, //betsAfter
+                snapshotBoard(),
+                snapshotHoleCards()
+        );
+        logger.append(e);
         street = Street.SHOWDOWN;
         potThisHand = 0;
         resetRoundBets();
@@ -694,4 +798,61 @@ public class Table {
             //e.printStackTrace();
         }
     }
+
+
+    public void applyReplayFrame(String streetName,
+                                 Integer potThisHand,
+                                 Integer currentBet,
+                                 Map<String,Integer> stacks,
+                                 Map<String,Integer> bets,
+                                 List<String> boardStrs,
+                                 Map<String, List<String>> holeCards,
+                                 Integer buttonIdx, Integer toActIdx) {
+        if (buttonIdx != null) this.button = buttonIdx;
+        if (toActIdx != null) this.currentPlayerIndex = toActIdx;
+
+        if (streetName != null) this.street = Street.valueOf(streetName);
+        if (potThisHand != null) this.potThisHand = potThisHand;
+        if (currentBet != null) this.currentBet = currentBet;
+
+        if (stacks != null || bets != null) {
+            for (Player p : players) {
+                if (stacks != null && stacks.containsKey(p.getName())) p.setStack(stacks.get(p.getName()));
+                if (bets != null && bets.containsKey(p.getName())) p.setBet(bets.get(p.getName()));
+            }
+        }
+
+        if (boardStrs != null) {
+            board.clear();
+            for (String cs : boardStrs) {
+                board.addCard(Card.fromString(cs));
+            }
+        }
+
+        if (holeCards != null) {
+            for (Player p : players) {
+                List<String> cs = holeCards.get(p.getName());
+                if (cs == null) continue;
+
+                p.clearHand();
+                for (String s : cs) {
+                    p.deal(Card.fromString(s));
+                }
+            }
+        }
+
+    }
+
+    private Map<String, List<String>> snapshotHoleCards() {
+        Map<String, List<String>> out = new HashMap<>();
+        for (Player p : players) {
+            List<String> cards = new ArrayList<>();
+            for (Card c : p.getHand().getHand()) {
+                cards.add(c.toString());
+            }
+            out.put(p.getName(), cards);
+        }
+        return out;
+    }
+
 }

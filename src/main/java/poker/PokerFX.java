@@ -3,6 +3,7 @@ package poker;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import javafx.animation.PauseTransition;
+import javafx.animation.Timeline;
 import javafx.application.Application;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
@@ -19,14 +20,23 @@ import javafx.stage.Stage;
 import javafx.scene.control.TextField;
 import javafx.util.Duration;
 import poker.data.GameState;
+import poker.data.LogEvent;
 
 import java.io.File;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import javafx.animation.KeyFrame;
+import java.util.Comparator;
+import java.util.Map;
+
 
 public class PokerFX extends Application {
 
     private Table table;
+
 
     private ArrayList<ImageView> boardDisplay = new ArrayList<>();
 
@@ -45,11 +55,21 @@ public class PokerFX extends Application {
     private Button equityBtn; //check equity (cheating, uses other player's card info)
     private TextField amountField; //enter amt for bet/raise
 
+    Button checkBtn;
+    Button betBtn;
+    Button foldBtn;
+    Button raiseBtn;
+    Button callBtn;
+
+
     private Button p1Stack;
     private Button p2Stack;
 
     private Button load;
     private Button save;
+
+    private Button replay;
+    private Button cancelReplay;
 
     private Image back;
 
@@ -66,6 +86,14 @@ public class PokerFX extends Application {
     //for writing json
     private final ObjectMapper mapper = new ObjectMapper().enable(SerializationFeature.INDENT_OUTPUT);
 
+    //for replay
+    private Timeline replayTimeline;
+    private List<LogEvent> replayEvents = List.of();
+    private int replayIdx = 0;
+    private GameState before;
+    private boolean replayMode = false;
+    private PauseTransition nextHandPause;
+    private final int replaySpeedMs = 2000;
 
 
     @Override
@@ -131,11 +159,11 @@ public class PokerFX extends Application {
         updateStatus();
 
         // buttons
-        Button checkBtn = new Button("Check");
-        Button betBtn = new Button("Bet");
-        Button foldBtn = new Button("Fold");
-        Button raiseBtn = new Button("Raise By");
-        Button callBtn = new Button("Call");
+        checkBtn = new Button("Check");
+        betBtn = new Button("Bet");
+        foldBtn = new Button("Fold");
+        raiseBtn = new Button("Raise By");
+        callBtn = new Button("Call");
 
         Button flipBtn = new Button("Flip");
 
@@ -189,10 +217,13 @@ public class PokerFX extends Application {
         turns.setAlignment(Pos.CENTER);
 
 
-        //save, load
+        //save, load, replay
         save = new Button("Save");
         load = new Button("Load");
-        HBox sl = new HBox(10, save, load);
+        replay = new Button("Replay");
+        cancelReplay = new Button("Cancel Replay");
+        HBox sl = new HBox(10, save, load, replay, cancelReplay);
+
 
         root.getChildren().addAll(
                 boardBox,
@@ -213,9 +244,11 @@ public class PokerFX extends Application {
         flipBtn.setOnAction(e -> onFlip());
         flipOtherBtn.setOnAction(e -> onOtherFlip());
 
-        //save, load button actions
+        //save, load, replay button actions
         save.setOnAction(e -> save());
         load.setOnAction(e -> load());
+        replay.setOnAction(e -> replay());
+        cancelReplay.setOnAction(e -> cancelReplay());
 /*
         p1WinsBtn.setOnAction(e -> {
             table.awardPotToPlayer(0);
@@ -285,13 +318,12 @@ public class PokerFX extends Application {
     }
 
     public void save() {
-        //TODO: implement save
         cancelEquityIfRunning();
 
         FileChooser fc = new FileChooser();
         fc.setTitle("Save Poker Game");
         fc.getExtensionFilters().add(new FileChooser.ExtensionFilter("Poker Save (JSON)", "*.json"));
-        fc.setInitialFileName("poker_save.json");
+        fc.setInitialFileName("poker_save_" + Instant.now().toString() + ".json");
 
         File f = fc.showSaveDialog(msg.getScene().getWindow());
         if (f == null) return;
@@ -307,7 +339,6 @@ public class PokerFX extends Application {
     }
 
     public void load(){
-        //TODO: implement load
         cancelEquityIfRunning();
 
         FileChooser fc = new FileChooser();
@@ -332,6 +363,117 @@ public class PokerFX extends Application {
         } catch (Exception ex) {
             setMsg("Load failed: " + ex.getMessage());
         }
+    }
+    private void replay() {
+        if (nextHandPause != null) nextHandPause.stop();
+        pendingNextHand = false;
+
+        cancelEquityIfRunning();
+
+        // if already replaying, ignore
+        if (replayTimeline != null) replayTimeline.stop();
+
+        before = table.toState();
+
+        FileChooser fc = new FileChooser();
+        fc.setTitle("Replay Poker Session");
+        fc.getExtensionFilters().add(
+                new FileChooser.ExtensionFilter("Poker Log (JSONL)", "*.jsonl")
+        );
+
+        File f = fc.showOpenDialog(msg.getScene().getWindow());
+        if (f == null) return;
+
+        try {
+            // parse log events
+            replayEvents = readJsonlEvents(f.toPath());
+            replayEvents.sort(Comparator
+                    .comparingInt(LogEvent::handId)
+                    .thenComparingInt(e -> e.seq() == null ? -1 : e.seq())
+                    .thenComparing(LogEvent::ts));
+
+            if (replayEvents.isEmpty()) {
+                setMsg("Replay file had no events.");
+                return;
+            }
+
+            // reset UI flags so state displays predictably
+            faceUp = false;
+            otherFaceUp = false;
+            pendingNextHand = false;
+
+            replayIdx = 0;
+            replayMode = true;
+            setReplayMode(true);
+
+            startReplayTimeline(replaySpeedMs); // ms per event, tune later
+            setMsg("Replaying: " + f.getName());
+
+        } catch (Exception ex) {
+            replayMode = false;
+            setReplayMode(false);
+            setMsg("Replay failed: " + ex.getMessage());
+        }
+    }
+
+
+    private void cancelReplay() {
+        if (!replayMode) {
+            return;
+        }
+
+        if (replayTimeline != null) {
+            replayTimeline.stop();
+            replayTimeline = null;
+        }
+
+        replayMode = false;
+        setReplayMode(false);
+
+        if (before != null) {
+            table.loadState(before);
+            faceUp = false;
+            otherFaceUp = false;
+            pendingNextHand = false;
+            refreshUI();
+        }
+
+        setMsg("Replay cancelled");
+    }
+
+    private void finishReplay() {
+        if (replayTimeline != null) {
+            replayTimeline.stop();
+            replayTimeline = null;
+        }
+        replayMode = false;
+        setReplayMode(false);
+
+        // restore the state from before replay
+        /*
+        if (before != null) {
+            table.loadState(before);
+            refreshUI();
+        }
+         */
+
+        setMsg("Replay finished");
+    }
+
+
+
+    private void setReplayMode(boolean on) {
+        foldBtn.setDisable(on);
+        checkBtn.setDisable(on);
+        callBtn.setDisable(on);
+        betBtn.setDisable(on);
+        raiseBtn.setDisable(on);
+        save.setDisable(on);
+        load.setDisable(on);
+        amountField.setDisable(on);
+
+        replay.setDisable(on);   // prevent starting a second replay
+        cancelReplay.setDisable(!on); // only enabled during replay
     }
 
     private void onEquity() {
@@ -407,8 +549,10 @@ public class PokerFX extends Application {
             card2Label.setImage(img2);
         }
 
+        String prefix = replayMode ? "Next: " : "To act: ";
+        turnLabel.setText(prefix + table.getCurrentPlayer().getName());
 
-        turnLabel.setText("To act: " + table.getCurrentPlayer().getName());
+        turnLabel.setText(prefix + table.getCurrentPlayer().getName());
 
     }
 
@@ -430,7 +574,10 @@ public class PokerFX extends Application {
 
 
     private void updateStatus() {
-        turnLabel.setText("To act: " + table.getCurrentPlayer().getName());
+        String prefix = replayMode ? "Next: " : "To act: ";
+        turnLabel.setText(prefix + table.getCurrentPlayer().getName());
+
+        turnLabel.setText(prefix + table.getCurrentPlayer().getName());
         buttonLabel.setText("Button: " + table.getButtonP().getName());
         int toCall = table.getToCallForCurrentPlayer();
         statusLabel.setText(
@@ -522,20 +669,23 @@ public class PokerFX extends Application {
     }
 
     private void autoNextHandIfOver() { //sets on a timer so ui refreshes smoothly
-        if (table.getStreet() != Table.Street.SHOWDOWN || pendingNextHand) {
+        if (table.getStreet() != Table.Street.SHOWDOWN || pendingNextHand || replayMode) {
             return;
         }
         pendingNextHand = true;
 
-        PauseTransition pause = new PauseTransition(Duration.millis(6000));
-        pause.setOnFinished(e -> {
+        if (nextHandPause != null) nextHandPause.stop();
+
+        nextHandPause = new PauseTransition(Duration.millis(6000));
+        nextHandPause.setOnFinished(e -> {
+            if (replayMode) return;
             cancelEquityIfRunning();
             pendingNextHand = false;
             setMsg("New hand!");
             table.startNewHand();
             refreshUI();
         });
-        pause.play();
+        nextHandPause.play();
     }
 
     private void cancelEquityIfRunning() {
@@ -543,4 +693,89 @@ public class PokerFX extends Application {
             equityTask.cancel();
         }
     }
+
+    public boolean isReplayMode() {
+        return replayMode;
+    }
+
+    private List<LogEvent> readJsonlEvents(Path p) throws Exception {
+        List<LogEvent> out = new ArrayList<>();
+        try (var lines = Files.lines(p)) {
+            lines.forEach(line -> {
+                if (line == null || line.isBlank()) return;
+                try {
+                    out.add(mapper.readValue(line, LogEvent.class));
+                } catch (Exception e) {
+                    throw new RuntimeException("Bad log line: " + line, e);
+                }
+            });
+        }
+        return out;
+    }
+
+    private void startReplayTimeline(int msPerEvent) {
+        if (replayTimeline != null) replayTimeline.stop();
+
+        replayTimeline = new Timeline(new KeyFrame(Duration.millis(msPerEvent), e -> stepReplay()));
+        replayTimeline.setCycleCount(Timeline.INDEFINITE);
+        replayTimeline.playFromStart();
+    }
+
+    private void stepReplay() {
+        if (replayIdx >= replayEvents.size()) {
+            finishReplay();
+            return;
+        }
+
+        LogEvent ev = replayEvents.get(replayIdx++);
+        applyReplaySnapshot(ev);
+        refreshUI();
+
+        setMsg(formatReplayMsg(ev));
+    }
+
+    private String formatReplayMsg(LogEvent ev) {
+        String streetTxt = ev.street() == null ? "" : (" " + ev.street());
+
+        if ("ACTION".equals(ev.eventType())) {
+            String who = ev.playerName() == null ? "?" : ev.playerName();
+            String act = ev.action() == null ? "?" : ev.action();
+
+            if ("BET".equals(act) || "RAISE".equals(act) || "CALL".equals(act)) {
+                int amt = ev.amountPaid() == null ? 0 : ev.amountPaid();
+                return who + " " + act + " " + amt + " " + streetTxt;
+            }
+
+            return who + " " + act + " " + streetTxt;
+        }
+
+        // system events like STREET_ADVANCE, HAND_START, HAND_END
+        String act = ev.action() == null ? ev.eventType() : ev.action();
+        return act + streetTxt;
+    }
+
+
+    private void applyReplaySnapshot(LogEvent ev) {
+        // prefer AFTER snapshots, fall back to BEFORE if after is null
+        var stacks = ev.stacksAfter() != null ? ev.stacksAfter() : ev.stacksBefore();
+        var bets   = ev.betsAfter()   != null ? ev.betsAfter()   : ev.betsBefore();
+        var board  = ev.board(); // your JSON uses "board": [...]
+
+        table.applyReplayFrame(
+                ev.street(),
+                ev.potAfter() != null ? ev.potAfter() : ev.potBefore(),
+                ev.currentBetAfter() != null ? ev.currentBetAfter() : ev.currentBetBefore(),
+                stacks,
+                bets,
+                board,
+                ev.holeCards(),
+                ev.buttonIdx(),
+                ev.toActIdx()
+        );
+
+        faceUp = true;
+        otherFaceUp = true;
+    }
+
+
 }

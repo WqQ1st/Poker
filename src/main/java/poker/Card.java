@@ -9,6 +9,17 @@ public class Card {
         rank = r;
     }
 
+    public static Card fromString(String cs) {
+        int r = stringToRank(cs.substring(0, 1));
+        int s = stringToSuit(cs.substring(1, 2));
+        if (s == -1 || r == -1) {
+            throw new IllegalArgumentException("Bad card string: " + cs + " parsed s=" + s + " r=" + r);
+        }
+
+        return new Card(s, r);
+    }
+
+
     public int getSuit() {
         return suit;
     }
@@ -65,6 +76,35 @@ public class Card {
             case 3 -> "h";
             case 4 -> "s";
             default -> "?";
+        };
+    }
+
+    public static int stringToSuit(String s) {
+        return switch (s) {
+            case "c" -> 1;
+            case "d" -> 2;
+            case "h" -> 3;
+            case "s" -> 4;
+            default -> -1;
+        };
+    }
+
+    public static int stringToRank(String r) {
+        return switch (r) {
+            case "2" -> 1;
+            case "3" -> 2;
+            case "4" -> 3;
+            case "5" -> 4;
+            case "6" -> 5;
+            case "7" -> 6;
+            case "8" -> 7;
+            case "9" -> 8;
+            case "T"  -> 9;
+            case "J" -> 10;
+            case "Q" -> 11;
+            case "K" -> 12;
+            case "A" -> 13;
+            default -> -1;
         };
     }
 }
